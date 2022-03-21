@@ -7,11 +7,13 @@ import {ModuleBase} from '../ModuleBase.sol';
 
 struct Vote {
     uint8 voteValue;
+    bytes32 voteHash;
     uint256 timestamp;
 }
 
 struct ProfilePublicationData {
     mapping(address => Vote) voteByCollector;
+    address[] votersAddresses;
     uint8 maxVoteNum;
 }
 
@@ -41,7 +43,7 @@ contract VoteCollectModule is ICollectModule, ModuleBase {
         uint256 pubId,
         bytes calldata data
     ) external override onlyHub {
-        (uint8 voteValue) = abi.decode(data, (uint8));
+        (uint8 voteValue, string memory voteText) = abi.decode(data, (uint8, string));
 
         if (voteValue > _dataByPublicationByProfile[profileId][pubId].maxVoteNum) {
             revert VoteOverMax();
@@ -51,7 +53,54 @@ contract VoteCollectModule is ICollectModule, ModuleBase {
             revert AlreadyVoted();
         } 
 
+        _dataByPublicationByProfile[profileId][pubId].votersAddresses.push(collector);
         _dataByPublicationByProfile[profileId][pubId].voteByCollector[collector].voteValue = voteValue;
+        _dataByPublicationByProfile[profileId][pubId].voteByCollector[collector].voteHash = keccak256(abi.encodePacked(voteText));
         _dataByPublicationByProfile[profileId][pubId].voteByCollector[collector].timestamp = block.timestamp;
     }
+
+    function getVoteForAddress(
+        uint256 profileId,
+        uint256 pubId,
+        address collector
+    ) external view returns (uint8) {
+        return _dataByPublicationByProfile[profileId][pubId].voteByCollector[collector].voteValue;
+    }
+
+    function getVoteHashForAddress(
+        uint256 profileId,
+        uint256 pubId,
+        address collector
+    ) external view returns (bytes32) {
+        return _dataByPublicationByProfile[profileId][pubId].voteByCollector[collector].voteHash;
+    }
+
+    function getVoteCount(
+        uint256 profileId,
+        uint256 pubId
+    ) external view returns (uint256) {
+        return _dataByPublicationByProfile[profileId][pubId].votersAddresses.length;
+    }
+
+    function getMaxVote(
+        uint256 profileId,
+        uint256 pubId
+    ) external view returns (uint8) {
+        return _dataByPublicationByProfile[profileId][pubId].maxVoteNum;
+    }
+
+    function getVotes(
+        uint256 profileId,
+        uint256 pubId
+    ) external view returns (Vote[] memory) {
+          uint256 voteCount = _dataByPublicationByProfile[profileId][pubId].votersAddresses.length;
+           Vote[] memory votes = new Vote[](voteCount);
+          address[] storage votersIndecies =  _dataByPublicationByProfile[profileId][pubId].votersAddresses;
+      for (uint i = 0; i < voteCount; i++) {
+          Vote storage vote = _dataByPublicationByProfile[profileId][pubId].voteByCollector[votersIndecies[i]]; 
+          votes[i] = vote;
+      }
+      return votes;
+    }
+    
 }
