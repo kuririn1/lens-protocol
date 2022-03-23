@@ -24,5 +24,6 @@ coverage.json
 .coverage_contracts
 
 addresses.json
+module-addresses.json
 
 contracts/core/modules/follow/SecretCodeFollowModule.sol

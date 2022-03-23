@@ -21,6 +21,8 @@ contract VoteCollectModule is ICollectModule, ModuleBase {
     error VoteOverMax();
     error AlreadyVoted();
 
+    event Voted(uint256 indexed profileId, uint256 indexed pubId, address collector, uint8 voteValue, uint256 timestamp);
+
     mapping(uint256 => mapping(uint256 => ProfilePublicationData))
         internal _dataByPublicationByProfile;
 
@@ -33,7 +35,7 @@ contract VoteCollectModule is ICollectModule, ModuleBase {
     ) external override onlyHub returns (bytes memory) {
         uint8 maxVoteNum = abi.decode(data, (uint8));
         _dataByPublicationByProfile[profileId][pubId].maxVoteNum = maxVoteNum;
-        return data;
+        return abi.encode(profileId, pubId, maxVoteNum);
     }
 
     function processCollect(
@@ -57,6 +59,8 @@ contract VoteCollectModule is ICollectModule, ModuleBase {
         _dataByPublicationByProfile[profileId][pubId].voteByCollector[collector].voteValue = voteValue;
         _dataByPublicationByProfile[profileId][pubId].voteByCollector[collector].voteHash = keccak256(abi.encodePacked(voteText));
         _dataByPublicationByProfile[profileId][pubId].voteByCollector[collector].timestamp = block.timestamp;
+
+        emit Voted(profileId, pubId, collector, voteValue, block.timestamp);
     }
 
     function getVoteForAddress(
@@ -91,15 +95,20 @@ contract VoteCollectModule is ICollectModule, ModuleBase {
 
     function getVotes(
         uint256 profileId,
-        uint256 pubId
+        uint256 pubId,
+        uint16 page,
+        uint16 votesPerPage
     ) external view returns (Vote[] memory) {
-          uint256 voteCount = _dataByPublicationByProfile[profileId][pubId].votersAddresses.length;
-           Vote[] memory votes = new Vote[](voteCount);
+          uint voteCount = _dataByPublicationByProfile[profileId][pubId].votersAddresses.length;
+          uint start = (page - 1) * votesPerPage;
+          uint end = start + votesPerPage;
+          end = end > voteCount ? voteCount : end;
+          Vote[] memory votes = new Vote[](end - start);
           address[] storage votersIndecies =  _dataByPublicationByProfile[profileId][pubId].votersAddresses;
-      for (uint i = 0; i < voteCount; i++) {
-          Vote storage vote = _dataByPublicationByProfile[profileId][pubId].voteByCollector[votersIndecies[i]]; 
-          votes[i] = vote;
-      }
+          for (uint i = start; i < end; i++) {
+            Vote storage vote = _dataByPublicationByProfile[profileId][pubId].voteByCollector[votersIndecies[i]]; 
+            votes[i-start] = vote;
+          }
       return votes;
     }
     
